@@ -1,0 +1,1188 @@
+MongoDB
+===========
+
+Link Cartella Condivisa: https://docs.google.com/spreadsheets/d/1Ry-SryhwgquXXM8-fv19ADAv2xZ3ZqqB/edit?usp=share_link&ouid=100113145437900182221&rtpof=true&sd=true
+Keys:
+https://drive.google.com/file/d/1hCh26Kz7TTgOoi9CzWKCy-ILhBPabD2Q/view?usp=share_link
+
+
+Install on Ubuntu
+
+sudo apt update
+sudo apt install openjdk-8-jdk
+java -version
+sudo apt install maven
+mvn -v
+
+# Change local password
+sudo passwd azureuser
+Cegeka2023!
+
+https://www.mongodb.com/docs/manual/tutorial/install-mongodb-on-ubuntu/
+
+cat /etc/issue
+curl -fsSL https://pgp.mongodb.com/server-6.0.asc | \
+   sudo gpg -o /usr/share/keyrings/mongodb-server-6.0.gpg \
+   --dearmor
+#wget -qO - https://www.mongodb.org/static/pgp/server-6.0.asc | sudo apt-key add -echo "deb [ arch=amd64,arm64 ] https://repo.mongodb.org/apt/ubuntu focal/mongodb-org/6.0 multiverse" | sudo tee /etc/apt/sources.list.d/mongodb-org-6.0.list
+echo "deb [ arch=amd64,arm64 signed-by=/usr/share/keyrings/mongodb-server-6.0.gpg ] https://repo.mongodb.org/apt/ubuntu focal/mongodb-org/6.0 multiverse" | sudo tee /etc/apt/sources.list.d/mongodb-org-6.0.list
+sudo apt-get update
+sudo apt-get install -y mongodb-org
+# sudo apt-get install -y mongodb-org=6.0.10 mongodb-org-database=6.0.10 mongodb-org-server=6.0.10 mongodb-org-mongos=6.0.10 mongodb-org-tools=6.0.10
+
+
+sudo mkdir /data
+sudo mkdir /data/db
+
+On WSL2 cannot start as service:
+sudo mongod&
+
+# Start service
+sudo service mongod start
+
+
+# Install Compass
+https://www.mongodb.com/docs/compass/current/install/
+wget https://downloads.mongodb.com/compass/mongodb-compass_1.40.4_amd64.deb
+sudo dpkg -i mongodb-compass_1.40.4_amd64.deb
+mongodb-compass
+
+======================
+
+cd /home/azureuser
+mkdir mongodb
+cd mongodb
+git clone https://github.com/thimotyb/mongodb-sample-dataset.git
+cd mongodb-sample-dataset
+mongoimport --drop --host localhost --port 27017 --db "sample_mflix" --collection movies --file sample_mflix/movies.json
+mongoimport --drop --host localhost --port 27017 --db "sample_training" --collection companies --file sample_training/companies.json
+
+
+========================
+ACCESSING A COLLECTION / DOCUMENT
+
+mongosh
+show dbs
+use sample_mflix
+show collections
+db.movies.findOne();
+
+============================
+Using like:
+db.movies.find({ title: /Indiana Jones/}, {title: 1});
+db.movies.find({title: "Indiana Jones and the Last Crusade"});
+db.movies.updateOne({title: "Indiana Jones and the Last Crusade"}, {$set: {favorite: "yes"}});
+
+========
+
+movie = {"title" : "Star Wars: Episode IV - A New Hope",
+ "director" : "George Lucas",
+ "year" : 1977}
+
+db.movies.insertOne(movie)
+db.movies.find({ "title": "Star Wars: Episode IV - A New Hope"  });
+
+db.movies.updateOne({ "title": "Star Wars: Episode IV - A New Hope"  }, { $set : { reviews: [ ] } } );
+db.movies.deleteOne( { _id: ObjectId("6576f5d951a345823203ad3b")  } );  # Change _id
+
+db.mymovies.insertOne({"title" : "Stand by Me"})
+
+db.mymovies.insertMany([{"title" : "Ghostbusters"},
+                        {"title" : "E.T."},
+                        {"title" : "Blade Runner"}]);
+
+
+===========================
+
+Orered and Unordered Bulk Inserts
+
+# Ordered Insert (does not complete on error)
+db.mymovies.insertMany([
+     {"_id" : 0, "title" : "Top Gun"},
+     {"_id" : 1, "title" : "Back to the Future"},
+     {"_id" : 1, "title" : "Gremlins"},
+     {"_id" : 2, "title" : "Aliens"}])
+
+# Unordered Insert (completes all valid records)
+db.mymovies.insertMany([
+ {"_id" : 3, "title" : "Sixteen Candles"},
+ {"_id" : 4, "title" : "The Terminator"},
+ {"_id" : 4, "title" : "The Princess Bride"},
+ {"_id" : 5, "title" : "Scarface"}],
+ {"ordered" : false})
+
+# Deletes all documents!
+db.mymovies.deleteMany({})
+# Drop the entire collection
+db.mymovies.drop()
+
+===========================
+
+REPLACE / UPDATEONE-UPDATEMANY / UPSERT
+
+### Replace
+
+person = {
+    "_id" : ObjectId("4b2b9f67a1f631733d917a7a"),
+    "name" : "joe",
+    "friends" : 32,
+    "enemies" : 2
+}
+db.users.insertOne(person)
+
+var joe = db.users.findOne({ "name": "joe"  })
+joe.relationships = {"friends" : joe.friends, "enemies" : joe.enemies};
+joe.username = joe.name
+delete joe.name
+delete joe.enemies
+delete joe.friends
+# In the db still the old users structure, in var joe in memory, the new structure --> use replace to restructure using the new object
+db.users.replaceOne({"name" : "joe"}, joe);
+
+# What if we are working on multiple documents?
+db.users.insertOne({"_id" : ObjectId("4b2b9f67a1f631733d917a7b"), "name" : "joe", "age" : 65})
+db.users.insertOne({"_id" : ObjectId("4b2b9f67a1f631733d917a7c"), "name" : "joe", "age" : 20})
+db.users.insertOne({"_id" : ObjectId("4b2b9f67a1f631733d917a7d"), "name" : "joe", "age" : 49})
+
+joe = db.users.findOne({"name" : "joe", "age" : 20});
+joe.age = joe.age+1
+
+db.users.replaceOne({"name":"joe"}, joe);
+db.users.replaceOne({"_id" : ObjectId("4b2b9f67a1f631733d917a7c")}, joe)
+
+
+### Update operators:
+
+pageview = {
+    "_id" : ObjectId("4b253b067525f35f94b60a31"),
+    "url" : "www.example.com",
+    "pageviews" : 52
+}
+
+db.analytics.insertOne(pageview)
+
+# Using increment atomic operator in update
+db.analytics.updateOne({"url" : "www.example.com"}, {"$inc" : {"pageviews" : 1}})
+
+# Showing update features for adding subdocuments
+db.users.drop()
+var user = {
+    "_id" : ObjectId("4b253b067525f35f94b60a31"),
+    "name" : "joe",
+    "age" : 30,
+    "sex" : "male",
+    "location" : "Wisconsin"
+}
+db.users.insertOne(user)
+
+db.users.updateOne({"_id" : ObjectId("4b253b067525f35f94b60a31")}, {"$set" : {"favorite book" : "War and Peace"}})
+db.users.updateOne({"name" : "joe"}, {"$set" : {"favorite book" : "Green Eggs and Ham"}})
+
+db.users.updateOne({"name" : "joe"}, {"$set" : {"favorite book" : ["Cat's Cradle", "Foundation Trilogy", "Ender's Game"]}})
+db.users.updateOne({"name" : "joe"}, {"$unset" : {"favorite book" : 1}})
+
+# Multi-dimensional insert
+var post = {
+    "_id" : ObjectId("4b253b067525f35f94b60a31"),
+    "title" : "A Blog Post",
+    "content" : "...",
+    "author" : {
+        "name" : "joe",
+        "email" : "joe@example.com"
+    }
+}
+db.posts.insertOne(post)
+
+db.posts.updateOne({"author.name" : "joe"}, {"$set" : {"author.name" : "joe schmoe"}})
+
+# This is not correct $set missing: db.posts.updateOne({"author.name" : "joe"}, {"author.name" : "joe schmoe"}) # WRONG!!! IT NEEDS UPDATE OPERATOR
+
+# $inc as an upsert
+db.games.insertOne({"game" : "pinball", "user" : "joe"})
+db.games.updateOne({"game" : "pinball", "user" : "joe"}, {"$inc" : {"score" : 50}}) # field score does not exist, it is created
+db.games.updateOne({"game" : "pinball", "user" : "joe"}, {"$inc" : {"score" : 10000}})
+# Does not work on strings
+db.strcounts.insertOne({"count" : "1"})
+db.strcounts.updateMany({}, {"$inc" : {"count" : 1}})
+
+# ARRAY MANIPULATION
+db.posts.findOne()
+
+db.posts.updateOne({"title" : "A Blog Post"},
+ {"$push" : {"comments" :
+     {"name" : "joe", "email" : "joe@example.com",
+     "content" : "nice post."}}})
+
+printjson(db.posts.findOne())
+db.posts.updateOne({"title" : "A Blog Post"},
+ {"$push" : {"comments" :
+     {"name" : "bob", "email" : "bob@example.com",
+     "content" : "good post."}}})
+printjson(db.posts.findOne())
+
+# Pushing multiple elements in one array with $each 
+db.stocks.insertOne({"_id" : "GOOG"})
+db.stocks.insertOne({"_id" : "DAN"})
+db.stocks.updateOne({"_id" : "GOOG"}, {"$push" : {"hourly": 561.15}}) # Add the one by one
+db.stocks.updateOne({"_id" : "GOOG"}, {"$push" : {"hourly": 561.16}})
+db.stocks.updateOne({"_id" : "DAN"}, {"$set" : {"hourly": 561.16}})
+# Or more than one with each
+db.stocks.updateOne({"_id" : "GOOG"}, {"$push" : {"hourly" : {"$each" : [562.776, 562.790, 559.123]}}})
+db.stocks.updateOne({"_id" : "DAN"}, {"$push" : {"hourly" : {"$each" : [562.776, 562.790, 559.123]}}})
+# Not like this: db.stocks.updateOne({"_id" : "GOOG"}, {"$push" : {"hourly" : [562.776, 562.790, 559.123]}}) # Will add the array as a single element
+
+# Deleting elements
+db.lists.insertOne({"todo" : ["dishes", "laundry", "dry cleaning"]})
+db.lists.updateOne({}, {"$pull" : {"todo" : "laundry"}})
+
+# Positional array
+db.stocks.updateOne({_id: "GOOG"}, {"$inc": { "hourly.0": 1 } })
+
+# Slicing
+db.stocks.updateOne({"_id" : "GOOG"}, {"$push" : {"hourly" : {"$each" : [562.776, 562.790, 559.123, 559.124, 559.125, 559.126], "$slice" : -10 }}})
+# Sorting
+db.stocks.updateOne({"_id" : "GOOG"}, {"$push" : {"hourly" : {"$each" : [562.776, 562.790, 559.123, 559.124, 559.125, 559.126], "$slice" : -10, "$sort" :  -1 }}})
+
+# Treating arrays as Sets ($addToSet)
+var user = {
+    "_id" : ObjectId("4b2d75476cc613d5ee930164"),
+    "username" : "joe",
+    "emails" : [
+        "joe@example.com",
+        "joe@gmail.com",
+        "joe@yahoo.com"
+    ]
+}
+db.users.insertOne(user)
+db.users.findOne({"_id" : ObjectId("4b2d75476cc613d5ee930164")})
+
+db.users.updateOne({"_id" : ObjectId("4b2d75476cc613d5ee930164")}, {"$addToSet" : {"emails" : "joe@gmail.com"}}) # does not insert a new element (already present)
+db.users.updateOne({"_id" : ObjectId("4b2d75476cc613d5ee930164")}, {"$addToSet" : {"emails" : "joe@hotmail.com"}})
+db.users.updateOne({"_id" : ObjectId("4b2d75476cc613d5ee930164")}, {"$addToSet" : {"emails" : {"$each" : ["joe@php.net", "joe@example.com", "joe@python.org"]}}}) # each single element is evaluated for unicity
+
+db.users.updateOne({"_id" : ObjectId("4b2d75476cc613d5ee930164")}, {"$pop" : {"emails" : 1} }) # 1 removes from the end of array, -1 from beginning
+
+# POSITIONAL UPDATES ON ARRAYS
+
+var posts = {
+    "_id" : ObjectId("4b329a216cc613d5ee930192"),
+    "content" : "...",
+    "comments" : [
+        {
+            "comment" : "good post",
+            "author" : "John",
+            "votes" : 0
+        },
+        {
+            "comment" : "i thought it was too short",
+            "author" : "Claire",
+            "votes" : 3
+        },
+        {
+            "comment" : "free watches",
+            "author" : "Alice",
+            "votes" : -5
+        },
+        {
+            "comment" : "vacation getaways",
+            "author" : "Lynn",
+            "votes" : -7
+        }
+    ]
+}
+db.posts.insertOne(posts)
+db.posts.find()
+db.posts.updateOne( {"_id" : ObjectId("4b329a216cc613d5ee930192")} , { "$inc" : { "comments.1.votes" : 1 }  } ) # Increment by position in array
+db.posts.updateOne( {"comments.author" : "John"}, {"$set" : {"comments.$.author" : "Jim"}} ) # Positional operator
+
+# CONDITIONAL ARRAY MANIPULATION
+
+db.posts.updateOne( {"_id" : ObjectId("4b329a216cc613d5ee930192")}, { $set: { "comments.$[elem].hidden" : true } }, {
+     arrayFilters: [ { "elem.votes": { $lte: -5 } } ]
+   })
+
+
+# UPSERT
+db.analytics.find()
+db.analytics.findOne({url : "/blog"})
+
+################## LOGICAL UPSERT CODE (NOT ATOMIC!!!!!)
+#// check if we have an entry for this page
+#blog = db.analytics.findOne({url : "/blog"})
+#// if we do, add one to the number of views and save
+#if (blog) {
+#  blog.pageviews++;
+#  db.analytics.save(blog);
+#}
+#// otherwise, create a new document for this page
+#else {
+#  db.analytics.insertOne({url : "/blog", pageviews : 1})
+#}
+######################################
+
+db.analytics.updateOne({"url" : "/blog"}, {"$inc" : {"pageviews" : 1}}, {"upsert" : true}) # ATOMIC READ AND INSERT IF NOT PRESENT
+db.analytics.updateOne({"url" : "/blog"}, {"$inc" : {"pageviews" : 1}}, {"upsert" : true}) # READ AND INCREMENT (UPDATE)
+
+=============================
+READ
+
+ db.movies.find({ title: /Indiana Jones/, runtime: 118 })
+ db.movies.find({ title: /Indiana Jones/, runtime: 118 },{ title:1, year: 1 })
+
+ db.movies.find({"runtime": { "$gte" : 120, "$lte" : 150 } })
+ 
+ start = new Date("01/01/2000")
+ db.movies.find({"released": { "$gt" : start } }, { title:1, released:1, _id:0 })
+
+db.users.find()
+db.users.find({"sex":{"$ne": "male"}})
+
+####  db.posts.find({"title" : { "$in" : [ "My Adventure", "A Blog Post"]}}) ### CHECK THIS ONE
+
+db.movies.find({"$or": [ {"year": 1943}, {"rated": "NOT RATED"} ]})
+
+# QUERY ON ARRAYS
+
+db.food.insertOne({"fruit" : ["apple", "banana", "peach"]})
+db.food.find({"fruit" : "banana"}) # This matches the document!!!
+
+# Using $all
+db.food.insertOne({"_id" : 1, "fruit" : ["apple", "banana", "peach"]})
+db.food.insertOne({"_id" : 2, "fruit" : ["apple", "kumquat", "orange"]})
+db.food.insertOne({"_id" : 3, "fruit" : ["cherry", "banana", "apple"]})
+db.food.find( {fruit: { $all: ["apple", "banana" ]  } } )
+
+db.food.find( {fruit: ["apple", "banana", "peach" ] } ) # Array exact search
+db.food.find( {fruit: ["apple", "banana" ]  } ) # This will not find anything
+
+db.food.find( { "fruit.2": "peach" } ) # Positional search
+db.food.find({"fruit" : { $size: 3 } } )
+
+# Positional operator
+
+ db.posts.find({"comments.author": "Jim"}) # All array elements
+ db.posts.find({"comments.author": "Jim"}, { "comments.$": 1 } ) # Only array elements (position unknown) that match
+
+# Slicing on read
+db.stocks.findOne({ _id: 'GOOG' }, {"hourly": { "$slice": 2 } }) # First two
+db.stocks.findOne({ _id: 'GOOG' }, {"hourly": { "$slice": -2 } }) # Last two
+db.stocks.findOne({ _id: 'GOOG' }, {"hourly": { "$slice": [1,4] } }) # Beginning from the second element for a total of four elements
+
+# elemMatch
+
+var post = {
+    "content" : "...",
+    "comments" : [
+        {
+            "author" : "joe",
+            "score" : 3,
+            "comment" : "nice post"
+        },
+        {
+            "author" : "mary",
+            "score" : 6,
+            "comment" : "terrible post"
+        }
+    ]
+}
+db.posts.insertOne(post)
+
+db.posts.find({"comments" : {"author" : "joe", "score" : {"$gte" : 2}}}) # This will not work
+db.posts.find({"comments" : {"$elemMatch" : {"author" : "joe", "score" : {"$gte" : 2}}}}) # This matches
+db.posts.find({"comments" : {"$elemMatch" : {"author" : "joe", "score" : {"$gte" : 5}}}}) # This does not match because joes' score is 3
+  
+db.posts.find({"comments" : {"$elemMatch" : {"author" : "joe", "score" : {"$gte" : 2}}}}, { "comments.$": 1} ) # This returns only the elements that match in the array in the document
+
+Operators: https://www.mongodb.com/docs/manual/reference/operator/query/
+
+=============================
+
+Cursor:
+for(i=0; i<100; i++) {
+ db.mytest.insertOne({x : i});
+}
+var cursor = db.mytest.find();
+
+cursor.forEach(function(j) {
+    print(j.x*2);
+ });
+ 
+# cursor.forEach(j=>print(j.x*2))
+ 
+db.mytest.find().limit(5)
+db.mytest.find().skip(3)
+db.mytest.find().skip(3).limit(5)
+db.mytest.find().skip(3).limit(5).sort({ "x": -1 }) # sorts first
+
+=====================
+
+INDEXES (On Prem)
+use index_samples
+
+
+Example of Index Structure
+[20 ....]
+[21, "user100154"] -> 8623530928
+[21, "user100266"] -> 8623545264
+[21, "user100270"] -> 8623545776
+[21, "user100285"] -> 8623547696
+[21, "user100349"] -> 8623555888
+[22 .... ]
+
+for (i=0; i<100000; i++) {
+     db.users.insertOne(
+         {
+              "i" : i, 
+              "username" : "user"+i,
+              "age" : Math.floor(Math.random()*120), 
+              "created" : new Date()
+         }
+     );
+ }
+
+db.users.countDocuments()
+db.users.find({"age" : 21}).sort({"username" : -1})
+db.users.find({"username": "user101"}).explain("executionStats")
+db.users.find({"username": "user999999"}).explain("executionStats")
+db.users.createIndex({"username" : 1})
+db.users.find({"username": "user101"}).explain("executionStats")
+db.users.find({"username": "user999999"}).explain("executionStats")
+db.users.find().sort({"age" : 1, "username" : 1}) # Needs a compound index to workd
+db.users.find().sort({"age" : 1, "username" : 1}).explain("executionStats")
+db.users.createIndex({"age" : 1, "username" : 1})
+db.users.createIndex({"username" : 1, "age": 1})
+db.users.find({}, {"_id" : 0, "i" : 0, "created" : 0})
+db.users.find().sort({"age" : 1, "username" : 1}).explain("executionStats")
+db.users.find().sort({"username" : 1, "age" : 1}).explain("executionStats")
+db.users.find({"age" : {"$gte" : 21, "$lte" : 30}}).explain("executionStats") # uses the age key in the second index
+db.users.find({"age" : {"$gte" : 21, "$lte" : 30}}).sort({"username" : 1}).explain("executionStats") # uses compound and then single index on username: ESR first sort key (username) and then RANGE key (age)
+
+db.users.find({"age" : {$gt : 10}, "username" : "user2134"}).explain() # ESR uses username_1_age_1
+db.users.find({"age" : 14, "username" : /.*/}).explain() # ESR : Equality + Range uses age_1_username_1, look rejected plan has the other index but it is less selective
+
+db.users.getIndexes()
+db.users.dropIndex("username_1")
+
+========================
+GEOSPATIAL QUERIES
+(on Atlas)
+use sample_restaurants
+db.neighborhoods.createIndex({geometry:"2dsphere"})
+db.restaurants.createIndex({'address.coord':"2dsphere"})
+
+db.neighborhoods.find({name: "Clinton"})
+db.restaurants.find({name: "Little Pie Company"})
+db.neighborhoods.findOne({geometry:{$geoIntersects:{$geometry:{type:"Point", coordinates:[-73.93414657,40.82302903]}}}},{name:1})
+
+var neighborhood = db.neighborhoods.findOne({
+  geometry: {
+    $geoIntersects: {
+      $geometry: {
+        type: "Point",
+        coordinates: [-74.013222,40.70122]
+      }
+    }
+  }
+});
+
+# Battery Park City-Lower Manhattan'
+db.restaurants.find({'address.coord': {$geoWithin: { $centerSphere: [ [ -74.00972425205318, 40.70867294227663 ], 0.00018213153257553877 ]}}})
+
+db.restaurants.find({
+    'address.coord': {
+      $geoWithin: {
+        // Use the geometry from the neighborhood object we retrieved above
+        $geometry: neighborhood.geometry
+      }
+    }
+  },
+  // Project just the name of each matching restaurant
+  {name: 1, _id: 0});
+  
+// NEAR SPHERE
+var METERS_PER_MILE = 1609.34;
+db.restaurants.find({
+  'address.coord': {
+    $nearSphere: {
+      $geometry: {
+        type: "Point",
+        coordinates: [-73.93414657,40.82302903]
+      },
+      $maxDistance: 5*METERS_PER_MILE
+    }
+  }
+});
+
+// FULL TEXT SEARCH
+
+use sample_mflix
+db.movies.getIndices(); # We use index cast_text_fullplot_text_genres_text_title_text
+# {
+    v: 2,
+    key: { _fts: 'text', _ftsx: 1 },
+    name: 'cast_text_fullplot_text_genres_text_title_text',
+    weights: { cast: 1, fullplot: 1, genres: 1, title: 1 },
+    default_language: 'english',
+    language_override: 'language',
+    textIndexVersion: 3
+  },
+#
+# db.movies.createIndex({"title": "text", 
+                           "body": "text"},
+                          {"weights" : {
+                               "title" : 3, 
+                               "body" : 2}})
+#                              
+
+db.movies.find({"$text": {"$search": "impact crater lunar"}}, {title:1}).limit(10)
+db.movies.find({"$text": {"$search": "\impact crater\ lunar"}}, {title:1}).limit(10)
+db.movies.find({"$text": {"$search": "\impact crater\ lunar"}}, {title:1, score: {$meta: "textScore"}}).sort({score: {$meta: "textScore"}}).limit(10)
+
+// CAPPED COLLECTIONS
+db.createCollection("my_collection", {"capped" : true, "size" : 100000});
+// TTL INDEXES
+// 24-hour timeout
+db.sessions.createIndex({"lastUpdated" : 1}, {"expireAfterSeconds" : 60*60*24})
+
+
+///////////////////////////////
+// AGGREGATION FW (ON PREM)
+////////////////////////////////
+
+db.orders.insertMany( [
+   { _id: 0, name: "Pepperoni", size: "small", price: 19,
+     quantity: 10, date: ISODate( "2021-03-13T08:14:30Z" ) },
+   { _id: 1, name: "Pepperoni", size: "medium", price: 20,
+     quantity: 20, date : ISODate( "2021-03-13T09:13:24Z" ) },
+   { _id: 2, name: "Pepperoni", size: "large", price: 21,
+     quantity: 30, date : ISODate( "2021-03-17T09:22:12Z" ) },
+   { _id: 3, name: "Cheese", size: "small", price: 12,
+     quantity: 15, date : ISODate( "2021-03-13T11:21:39.736Z" ) },
+   { _id: 4, name: "Cheese", size: "medium", price: 13,
+     quantity:50, date : ISODate( "2022-01-12T21:23:13.331Z" ) },
+   { _id: 5, name: "Cheese", size: "large", price: 14,
+     quantity: 10, date : ISODate( "2022-01-12T05:08:13Z" ) },
+   { _id: 6, name: "Vegan", size: "small", price: 17,
+     quantity: 10, date : ISODate( "2021-01-13T05:08:13Z" ) },
+   { _id: 7, name: "Vegan", size: "medium", price: 18,
+     quantity: 10, date : ISODate( "2021-01-13T05:10:13Z" ) }
+] )
+
+==============
+
+db.orders.aggregate( [
+
+   // Stage 1: Filter pizza order documents by pizza size
+   {
+      $match: { size: "medium" }
+   },
+
+   // Stage 2: Group remaining documents by pizza name and calculate total quantity
+   {
+      $group: { _id: "$name", totalQuantity: { $sum: "$quantity" } }
+   }
+
+] )
+
+=============
+
+db.orders.aggregate( [
+
+   // Stage 1: Filter pizza order documents by date range
+   {
+      $match:
+      {
+         "date": { $gte: new ISODate( "2020-01-30" ), $lt: new ISODate( "2022-01-30" ) }
+      }
+   },
+
+   // Stage 2: Group remaining documents by date and calculate results
+   {
+      $group:
+      {
+         _id: { $dateToString: { format: "%Y-%m-%d", date: "$date" } },
+         totalOrderValue: { $sum: { $multiply: [ "$price", "$quantity" ] } },
+         averageOrderQuantity: { $avg: "$quantity" }
+      }
+   },
+
+   // Stage 3: Sort documents by totalOrderValue in descending order
+   {
+      $sort: { totalOrderValue: -1 }
+   }
+
+ ] )
+ 
+ https://www.mongodb.com/docs/manual/meta/aggregation-quick-reference/
+ 
+ https://www.mongodb.com/docs/manual/reference/operator/aggregation/group/#std-label-accumulators-group
+ 
+ https://www.mongodb.com/docs/manual/meta/aggregation-quick-reference/#std-label-aggregation-expressions
+ 
+ https://www.mongodb.com/docs/manual/reference/operator/aggregation/#std-label-aggregation-expression-operators
+ 
+ 
+==================
+
+/////////////////////////
+// AGGREGATION FW (on Atlas)
+/////////////////////////
+use sample_training
+db.companies.findOne({"name": "Facebook"})
+db.companies.aggregate([ {$match: {founded_year: 2004}}, ]) # same as db.companies.find({founded_year: 2004})
+
+db.companies.aggregate([
+  {$match: {founded_year: 2004}},
+  {$project: {
+    _id: 0,
+    name: 1,
+    founded_year: 1
+  }}
+])
+
+db.companies.aggregate([
+  {$match: {founded_year: 2004}},
+  {$limit: 5},
+  {$project: {
+    _id: 0,
+    name: 1}}
+])
+
+db.companies.aggregate([
+    { $match: { founded_year: 2004 } },
+    { $sort: { name: 1} },
+    { $limit: 5 },
+    { $project: {
+        _id: 0,
+        name: 1 } }
+])
+
+db.companies.aggregate([
+  {$match: {founded_year: 2004}},
+  {$sort: {name: 1}},
+  {$skip: 10},
+  {$limit: 5},
+  {$project: {
+    _id: 0,
+    name: 1}},
+])
+
+db.companies.aggregate( [ { $group: { _id: "$founded_year", "totdip": { "$sum": "$number_of_employees" } } } ] )
+
+db.companies.aggregate([
+  {$match: {"funding_rounds.investments.financial_org.permalink": "greylock" }},
+  {$project: {
+    _id: 0, 
+    name: 1,
+    ipo: "$ipo.pub_year",
+    valuation: "$ipo.valuation_amount",
+    funders: "$funding_rounds.investments.financial_org.permalink"
+  }},{$limit: 1}
+]).pretty()
+
+ // UNWIND
+ db.companies.aggregate([
+  {$match: {"funding_rounds.investments.financial_org.permalink": "greylock"} },
+  {$project: {
+    _id: 0,
+    name: 1,
+    amount: "$funding_rounds.raised_amount",
+    year: "$funding_rounds.funded_year"
+  }},{$limit: 1}
+])
+
+# Unwind on the 11 funding years of FB
+db.companies.aggregate([
+  { $match: {"funding_rounds.investments.financial_org.permalink": "greylock"} },
+  { $unwind: "$funding_rounds" },
+  { $project: {
+    _id: 0,
+    name: 1,
+    amount: "$funding_rounds.raised_amount",
+    year: "$funding_rounds.funded_year"
+  } },{$limit: 11}
+])
+
+db.companies.aggregate([
+  { $match: {"funding_rounds.investments.financial_org.permalink": "greylock"} },
+  { $unwind: "$funding_rounds" },
+  { $project: {
+    _id: 0,
+    name: 1,
+    amount: "$funding_rounds.raised_amount",
+    year: "$funding_rounds.funded_year"
+  } },{$limit: 15}
+])
+ 
+# financial org needs to be filtered
+db.companies.aggregate([
+  { $match: {"funding_rounds.investments.financial_org.permalink": "greylock"} },
+  { $unwind: "$funding_rounds" },
+  { $project: {
+    _id: 0,
+    name: 1,
+    funder: "$funding_rounds.investments.financial_org.permalink",
+    amount: "$funding_rounds.raised_amount",
+    year: "$funding_rounds.funded_year"
+  } },{$limit: 15}
+])
+
+# Match after unwind to solve the problem
+db.companies.aggregate([
+  { $match: {"funding_rounds.investments.financial_org.permalink": "greylock"} },
+  { $unwind: "$funding_rounds" },
+  { $match: {"funding_rounds.investments.financial_org.permalink": "greylock"} },
+  { $project: {
+    _id: 0,
+    name: 1,
+    individualFunder: "$funding_rounds.investments.person.permalink",
+    fundingOrganization: "$funding_rounds.investments.financial_org.permalink",
+    amount: "$funding_rounds.raised_amount",
+    year: "$funding_rounds.funded_year"
+  } },{$limit: 10}
+])
+
+# Array expressions - Filtering
+db.companies.aggregate([
+  { $match: {"funding_rounds.investments.financial_org.permalink": "greylock"} },
+  { $project: {
+    _id: 0,
+    name: 1,
+    founded_year: 1,
+    rounds: { $filter: {
+      input: "$funding_rounds",
+      as: "round",
+      cond: { $gte: ["$$round.raised_amount", 100000000] } } }
+  } },
+  { $match: {"rounds.investments.financial_org.permalink": "greylock" } },
+  {$limit: 1}
+]).pretty()
+
+# position ElemAt, Slice
+db.companies.aggregate([
+  { $match: { "founded_year": 2010 } },
+  { $project: {
+    _id: 0,
+    name: 1,
+    founded_year: 1,
+    first_round: { $arrayElemAt: [ "$funding_rounds", 0 ] },
+    last_round: { $arrayElemAt: [ "$funding_rounds", -1 ] }
+  } },
+  { $limit: 1}
+]).pretty()
+
+db.companies.aggregate([
+  { $match: { "founded_year": 2010 } },
+  { $project: {
+    _id: 0,
+    name: 1,
+    founded_year: 1,
+    early_rounds: { $slice: [ "$funding_rounds", 1, 3 ] }
+  } },
+  { $limit: 1}
+]).pretty()
+
+# ACCUMULATORS
+db.companies.aggregate([
+  { $match: { "funding_rounds": { $exists: true, $ne: [ ]} } },
+  { $project: {
+    _id: 0,
+    name: 1,
+    largest_round: { $max: "$funding_rounds.raised_amount" }
+  } }
+])
+
+# Trovare le top 10 aziende che hanno avuto il funding round più alto in assoluto
+
+db.companies.aggregate([
+  { $match: { "funding_rounds": { $exists: true, $ne: [ ]} } },
+  { $project: {
+    _id: 0,
+    name: 1,
+    total_funding: { $sum: "$funding_rounds.raised_amount" }
+  } }
+])
+
+# GROUPING
+db.companies.aggregate([
+  { $group: {
+    _id: { founded_year: "$founded_year" },
+    average_number_of_employees: { $avg: "$number_of_employees" }
+  } },
+  { $sort: { average_number_of_employees: -1 } }
+
+])
+
+db.companies.aggregate( [
+  { $match: { "relationships.person": { $ne: null } } },
+  { $project: { relationships: 1, _id: 0 } },
+  { $unwind: "$relationships" },
+  { $group: {
+    _id: "$relationships.person",
+    count: { $sum: 1 }
+  } },
+  { $sort: { count: -1 } }
+]).pretty()
+
+# Using ID in Grouping
+db.companies.aggregate([
+  { $match: { founded_year: { $gte: 2010 } } },
+  { $group: {
+    _id: { founded_year: "$founded_year"},
+    companies: { $push: "$name" }
+  } },
+  { $sort: { "_id.founded_year": 1 } }
+]).pretty()
+
+# Multiple fields in ID
+db.companies.aggregate([
+  { $match: { founded_year: { $gte: 2010 } } },
+  { $group: {
+    _id: { founded_year: "$founded_year", category_code: "$category_code" },
+    companies: { $push: "$name" }
+  } },
+  { $sort: { "_id.founded_year": 1 } }
+]).pretty()
+
+# Composite ID used in following stages
+db.companies.aggregate([
+  { $group: {
+    _id: { ipo_year: "$ipo.pub_year" },
+    companies: { $push: "$name" }
+  } },
+  { $sort: { "_id.ipo_year": 1 } }
+]).pretty()
+
+# Writing aggregation results 
+
+https://www.mongodb.com/docs/manual/reference/operator/aggregation/out/
+
+
+db.companies.aggregate([
+  { $match: { "funding_rounds": { $exists: true, $ne: [ ]} } },
+  { $project: {
+    _id: 0,
+    name: 1,
+    largest_round: { $max: "$funding_rounds.raised_amount" }
+  } },
+  { $out : "max_fund_rounds" }
+])
+
+show collections
+
+https://www.mongodb.com/docs/manual/reference/operator/aggregation/merge/
+https://www.mongodb.com/docs/manual/core/materialized-views/
+
+# Important to use as _id something "stable" such as company name to perform merging when source data updates
+db.companies.aggregate([
+  { $match: { "funding_rounds": { $exists: true, $ne: [ ]} } },
+  { $project: {
+    _id: "$name",
+    largest_round: { $max: "$funding_rounds.raised_amount" }
+  } },
+  { $merge : { into : "mater_view_funding_companies", on: "_id" } }
+])
+
+=============================
+
+JOIN CON $lookup
+https://www.mongodb.com/docs/manual/reference/operator/aggregation/lookup/
+
+use join_example # create a clean db
+
+db.orders.insertMany( [
+   { "_id" : 1, "item" : "almonds", "price" : 12, "quantity" : 2 },
+   { "_id" : 2, "item" : "pecans", "price" : 20, "quantity" : 1 },
+   { "_id" : 3  }
+] )
+
+db.inventory.insertMany( [
+   { "_id" : 1, "sku" : "almonds", "description": "product 1", "instock" : 120 },
+   { "_id" : 2, "sku" : "bread", "description": "product 2", "instock" : 80 },
+   { "_id" : 3, "sku" : "cashews", "description": "product 3", "instock" : 60 },
+   { "_id" : 4, "sku" : "pecans", "description": "product 4", "instock" : 70 },
+   { "_id" : 5, "sku": null, "description": "Incomplete" },
+   { "_id" : 6 }
+] )
+
+db.orders.aggregate( [
+   {
+     $lookup:
+       {
+         from: "inventory",
+         localField: "item",
+         foreignField: "sku",
+         as: "inventory_docs"
+       }
+  }
+] )
+
+============================
+SCHEMA VALIDATION
+https://www.mongodb.com/docs/manual/core/schema-validation/specify-json-schema/#std-label-schema-validation-json
+https://json-schema.org/
+
+db.createCollection("students", {
+   validator: {
+      $jsonSchema: {
+         bsonType: "object",
+         title: "Student Object Validation",
+         required: [ "address", "major", "name", "year" ],
+         properties: {
+            name: {
+               bsonType: "string",
+               description: "'name' must be a string and is required"
+            },
+            year: {
+               bsonType: "int",
+               minimum: 2017,
+               maximum: 3017,
+               description: "'year' must be an integer in [ 2017, 3017 ] and is required"
+            },
+            gpa: {
+               bsonType: [ "double" ],
+               description: "'gpa' must be a double if the field exists"
+            }
+         }
+      }
+   }
+} )
+
+# This fails bcause gpa not double
+db.students.insertOne( {
+   name: "Alice",
+   year: Int32( 2019 ),
+   major: "History",
+   gpa: Int32(3),
+   address: {
+      city: "NYC",
+      street: "33rd Street"
+   }
+} )
+
+# Without name
+db.students.insertOne( {
+   year: Int32( 2019 ),
+   major: "History",
+   gpa: Int32(3),
+   address: {
+      city: "NYC",
+      street: "33rd Street"
+   }
+} )
+
+
+# This is a valid document
+db.students.insertOne( {
+   name: "Alice",
+   year: NumberInt(2019),
+   major: "History",
+   gpa: Double(3.0),
+   address: {
+      city: "NYC",
+      street: "33rd Street"
+   }
+} )
+
+===========================
+
+TRANSACTION (USE ON A RS)
+
+db.getSiblingDB("mydb1").foo.insertOne(
+    {abc: 0},
+    { writeConcern: { w: "majority", wtimeout: 2000 } }
+)
+db.getSiblingDB("mydb2").bar.insertOne(
+   {xyz: 0},
+   { writeConcern: { w: "majority", wtimeout: 2000 } }
+)
+
+session = db.getMongo().startSession( { readPreference: { mode: "primary" } } );
+coll1 = session.getDatabase("mydb1").foo;
+coll2 = session.getDatabase("mydb2").bar;
+
+// Start a transaction
+session.startTransaction( { readConcern: { level: "local" }, writeConcern: { w: "majority" } } );
+
+try {
+   coll1.insertOne( { abc: 1 } );
+   coll2.insertOne( { xyz: 999 } );
+} catch (error) {
+   // Abort transaction on error
+   session.abortTransaction();
+   throw error;
+}
+
+// Commit the transaction using write concern set at transaction start
+session.commitTransaction();
+
+session.endSession();
+
+
+try {
+   coll1.insertOne( {  _id: ObjectId("657ae5dfd25a63976a575b91"), abc: 1 } );
+   coll2.insertOne( { xyz: 666 } );
+} catch (error) {
+   // Abort transaction on error
+   session.abortTransaction();
+   throw error;
+}
+
+============================
+
+CREATE LOCAL REPLICA SET
+
+tmux
+https://tmuxcheatsheet.com/
+
+Ctrl-B "
+Ctrl-B (up/down)
+
+sudo service mongod stop
+
+mkdir -p ~/data/rs{1,2,3}
+
+# In 4 different tabs:
+sudo mongod --replSet rsExample --dbpath ~/data/rs1 --port 27017 --oplogSize 200
+sudo mongod --replSet rsExample --dbpath ~/data/rs2 --port 27018 --oplogSize 200
+sudo mongod --replSet rsExample --dbpath ~/data/rs3 --port 27019 --oplogSize 200
+mongosh --port 27017
+
+rsconf = {
+    _id: "rsExample",
+    members: [
+      {_id: 0, host: "localhost:27017"},
+      {_id: 1, host: "localhost:27018"},
+      {_id: 2, host: "localhost:27019"} 
+    ]
+  }
+
+rs.initiate(rsconf)
+rs.status()
+
+# Preferred Read and Write on Primaries
+use test
+for (i=0; i<1000; i++) {db.coll.insertOne({count: i})}
+// make sure the docs are there
+db.coll.countDocuments()
+db.isMaster()
+secondaryConn = new Mongo("localhost:27019")
+secondaryDB = secondaryConn.getDB("test")
+secondaryDB.coll.find() # this gives an error
+# MongoServerError: not primary and secondaryOk=false - consider using db.getMongo().setReadPref() or readPreference in the connection string
+secondaryConn.setReadPref('secondary')
+secondaryDB.coll.insert({"count" : 1001}) # Error: can write only on primaries
+db.coll.insert({"count" : 1001})
+secondaryDB.coll.countDocuments()
+# Automatic Failover
+db.adminCommand({"shutdown" : 1}) # shutdown primary
+secondaryDB.isMaster() # look at .primary and .me attributes
+# restart ex-primary
+
+rs.printReplicationInfo()
+rs.printSecondaryReplicationInfo()
+
+===============================
+
+SINGLE NODE SHARD CREATION
+
+https://www.mongodb.com/docs/manual/tutorial/deploy-shard-cluster/
+
+mkdir -p ~/data/cfg{1,2,3}
+mkdir -p ~/data/db{1,2,3}
+
+sudo mongod --configsvr --replSet myReplSet --dbpath ~/data/cfg1 --port 27020
+sudo mongod --configsvr --replSet myReplSet --dbpath ~/data/cfg2 --port 27021
+sudo mongod --configsvr --replSet myReplSet --dbpath ~/data/cfg3 --port 27022
+
+mongosh --port 27020
+
+rs.initiate(
+  {
+    _id: "myReplSet",
+    configsvr: true,
+    members: [
+      { _id : 0, host : "localhost:27020" },
+      { _id : 1, host : "localhost:27021" },
+      { _id : 2, host : "localhost:27022" }
+    ]
+  }
+)
+
+sudo mongod --shardsvr --replSet myReplShard  --dbpath ~/data/db1 --port 27017
+sudo mongod --shardsvr --replSet myReplShard  --dbpath ~/data/db2 --port 27018
+sudo mongod --shardsvr --replSet myReplShard  --dbpath ~/data/db3 --port 27019
+
+mongosh --port 27017
+
+rs.initiate(
+  {
+    _id : "myReplShard",
+    members: [
+      { _id : 0, host : "localhost:27017" },
+      { _id : 1, host : "localhost:27018" },
+      { _id : 2, host : "localhost:27019" }
+    ]
+  }
+)
+
+# start mongos router
+sudo mongos --configdb myReplSet/localhost:27020,localhost:27021,localhost:27022 --port 27023
+# connect to the shard router
+mongosh --port 27023
+
+# Operate on mongos mongo shell
+sh.addShard( "myReplShard/localhost:27017,localhost:27018,localhost:27019")
+
+# Shard a collection based on Hash or Range
+#sh.shardCollection("<database>.<collection>", { <shard key field> : "hashed" } )
+#sh.shardCollection("<database>.<collection>", { <shard key field> : 1, ... } )
+
+use accounts
+for (var i=0; i<100000; i++) {
+     db.users.insertOne({"username" : "user"+i, "created_at" : new Date()});
+}
+db.users.findOne({username: 'user50000'})
+db.users.countDocuments()
+sh.status() # coll accounts not sharded yet (see: partitioned)
+sh.enableSharding("accounts") # No longer needed since Mongo 6.0
+db.users.createIndex({"username" : 1})
+sh.shardCollection("accounts.users", {"username" : 1}, false,
+  {
+    numInitialChunks: 5,
+    collation: { locale: "simple" }
+  })
+sh.status()
+
+sh.balancerCollectionStatus("accounts.users")
+sh.splitAt( "accounts.users", { "username": "user50000" } )
+sh.status()
+
+db.users.find({username: "user12345"}}).explain() # SINGLE SHARD QUERY PLAN
+
+# Modify chunksize (experimental)
+use config
+db.settings.updateOne(
+   { _id: "chunksize" },
+   { $set: { _id: "chunksize", value: <sizeInMB> } },
+   { upsert: true }
+)
+
+
+db.settings.updateOne(
+   { _id: "chunksize" },
+   { $set: { _id: "chunksize", value: 1 } },
+   { upsert: true }
+)
+
+db.adminCommand( { balancerCollectionStatus: "accounts.users" } )
+
+
+================
+
+Reactive Mongo
+
+mongodb+srv://m001-student:secret@cluster0.uuo3cgl.mongodb.net/test
+https://github.com/thimotyb/spring-reactive-sample/tree/master/boot-data-mongo
+
+
